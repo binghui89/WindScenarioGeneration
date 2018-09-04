@@ -37,8 +37,8 @@ cd(dirhome);
 uam = nan(nT, nI); % Marginal CDF of actual wind power
 ufm = nan(nT, nI); % Marginal CDF of forecasted wind power
 for i = 1: nI
-    [gmm_a, ~] = fit_GMM(xa(:, i), nbins);
-    [gmm_f, ~] = fit_GMM(xf(:, i), nbins);
+    [gmm_a, ~] = fit_GMM(xa(1:nT1, i), nbins); % Only use time 1 to nT1 for training
+    [gmm_f, ~] = fit_GMM(xf(1:nT1, i), nbins);
     struct_a(i).Fm = gmm_a; % Fm is fitted marginal distribution function
     struct_f(i).Fm = gmm_f;
     uam(:, i) = cdf(gmm_a, xa(:, i));
@@ -69,13 +69,13 @@ for i = 1: nI
     % Note in the copula package, the conditioned variable is always the
     % last one
     % C(ufm1, ufm2, ..., ufmI, uam1, uam2, ... uam(i-1), uam(i+1), ...uamI, uami)
-    u_copula_input = [ufm uam(:, I~=i) uam(:, i)];
+    u_copula_input = [ufm(1:nT1, :) uam(1:nT1, I~=i) uam(1:nT1, i)];
     copula_model = func_choose_best_copula_model(u_copula_input);
     struct_a(i).copula = copula_model;
 end
 
 %% Generate scenarios
-nS = 1000; nS1 = 100; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
+nS = 1000; nS1 = 900; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
 tmp = nan(nS, nT2, nI);
 for i = 1: nI
     tmp(:, :, i) = cdf_rand_correlated(nT2, ra(i), nS);
@@ -124,13 +124,16 @@ x_ascend = (0:0.001:1)';
 for i = 1: nI
     figure();
     hold on;
-    for s = 1: nS
+    for s = nS1+1: nS % The first nS1 scenarios are for burn-in process
         u_tmp = uam_new(:, i, s);
         u_ascend = cdf(struct_a(i).Fm, x_ascend);
         x = interp1(u_ascend, x_ascend, u_tmp, 'linear');
         plot(1: length(x), x, 'Color', [102, 170, 215]./255);
     end
-    plot(1: nT2, xa(nT1+1: nT, i), 'LineWidth', 2, 'Color', 'r');
-    plot(1: nT2, xf(nT1+1: nT, i), 'LineWidth', 2, 'Color', 'm');
+    h1 = plot(1: nT2, xa(nT1+1: nT, i), 'LineWidth', 2, 'Color', 'r');
+    h2 = plot(1: nT2, xf(nT1+1: nT, i), 'LineWidth', 2, 'Color', 'm');
     hold off;
+    legend([h1, h2], 'Actual', 'DA forecast');
+    xlabel('Time');
+    ylabel('Power (p.u.)');
 end
