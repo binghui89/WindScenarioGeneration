@@ -1,7 +1,4 @@
 %% Data preparation
-clear;
-addpath('C:\Users\bxl180002\Downloads\IEEE\backup-conditional WPRF\conditional WPRF\copula-matlab-master');
-addpath('C:\Users\bxl180002\Downloads\IEEE\backup-conditional WPRF\conditional WPRF'); % Because I am too lazy to write a new code for copula fitting, so just use Cui's old code.
 dirwork = 'result';
 dirhome = pwd;
 nbins = 50;
@@ -42,7 +39,7 @@ for i = 1: nI
     struct_a(i).Fm = gmm_a; % Fm is fitted marginal distribution function
     struct_f(i).Fm = gmm_f;
     uam(:, i) = cdf(gmm_a, xa(:, i));
-    ufm(:, i) = cdf(gmm_f, xa(:, i));
+    ufm(:, i) = cdf(gmm_f, xf(:, i));
 end
 % [counts, binedges] = histcounts(xf, nbins);
 % bincenter = (binedges(1: end-1) + binedges(2: end))/2;
@@ -85,8 +82,9 @@ uam_new = nan(size(Pa_conditionedelse));
 
 u_sorted = (0:0.001:1)';
 nsorted = size(u_sorted, 1);
-tic;
-for t = 1: nT2
+
+parfor t = 1: nT2
+    tic;
     conditioning_variable_ufm = ufm(nT1+t, :);
     conditioning_variable_ufa = ufm(nT1+t, :); % Use forecasted values as the initial conditioning variables of ufa
     for s = 1: nS
