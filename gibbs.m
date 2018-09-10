@@ -1,14 +1,14 @@
 %% Data preparation
-dirwork = 'result';
+dirwork = 'test';
 dirhome = pwd;
 nbins = 50;
 
 sid = [20481, 21055, 22235];
 capacity = [16, 14, 16]; % Should write a function to read capacity based on site #
 nI = length(sid);
-nT1 = 620; % Total number of hours for training
+nT1 = 46968 - 24; % Total number of hours for training
 nT2 = 24; % Total number of hours for forcasting
-nT = nT1 + nT2; % Total number of samples
+nT = nT1 + nT2; % Total number of samples, total hours from 1/1/07 to 5/10/12
 
 %% Read data
 xa_MW = nan(nT, nI); % Actual wind power in MW
@@ -18,12 +18,13 @@ xf    = nan(nT, nI); % Forecasted wind power in p.u.
 
 cd(dirwork);
 for i = 1: nI
-    fname = strcat('Forecast_prob_', int2str(sid(i)), '.csv');
+    fname = strcat(int2str(sid(i)), '.csv');
+%     fname = strcat('Forecast_prob_', int2str(sid(i)), '.csv');
     M = csvread(fname, 1, 0);
-    xa_MW(:, i) = M(:, 6);
-    xf_MW(:, i) = M(:, 7);
-    xa(:, i)    = M(:, 6)./capacity(i);
-    xf(:, i)    = M(:, 7)./capacity(i);
+    xa_MW(:, i) = M(1:nT, 6);
+    xf_MW(:, i) = M(1:nT, 7);
+    xa(:, i)    = M(1:nT, 6)./capacity(i);
+    xf(:, i)    = M(1:nT, 7)./capacity(i);
 end
 cd(dirhome);
 
