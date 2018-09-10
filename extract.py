@@ -77,16 +77,24 @@ def extract_day(trace, year, month, day, forecast=False):
         i_end   = nday*24*12
     return trace[i_start: i_end]
 
-def write_csv_file(fnc_actual, fnc_frcst):
+def write_csv_file(fnc_actual, fnc_frcst, date_list=None):
     # This script read strings of filename fnc_actual and fnc_crcst, and extract
-    # 30 days of data from the WIND toolkit, write hourly average to a csvfile.
+    # HOURLY AVERAGE wind power, both actual and day-ahead forecast from, of the
+    # date specified in date_list and write to a csvfile. If date_list is empty
+    # then all date will be extracted, which is from 2007-01-01 to 2012-12-31.
     # Include actual data and day ahead forecasted data.
     directory, fname = os.path.split(fnc_actual)
     str_sid = fname.split('.')[0]
 
-    base = datetime.datetime(2012, 5, 10)
-    date_list = [base - datetime.timedelta(days=x) for x in range(0, 31)]
-    date_list.reverse()
+    if date_list:
+        pass
+    else:
+        date_start = datetime.datetime(2007, 1, 1)
+        date_end   = datetime.datetime(2012, 12, 31)
+        delta = date_end - date_start
+        date_list = list()
+        for i in range(0, delta.days+1):
+            date_list.append(date_start + datetime.timedelta(days=i))
 
     s_actual     = read_netcdf(fnc_actual)
     power_actual = offset_WIND_data(s_actual.power, -6, False) # Texas is in UTC -6
@@ -135,8 +143,10 @@ def write_csv_file(fnc_actual, fnc_frcst):
 
 def extract_texas2000():
     # Extract RT and forecasting wind power of all wind farms from the TEXAS2000
-    # system and store them to csv files, in format as specified by Mucun. 
-    dir_save = 'C:\\Users\\bxl180002\\Downloads\\test'
+    # system and store them to csv files, in format as specified by Mucun.
+    # Note that this function calls write_csv_file(), which extracts hourly data.
+    dir_home = os.getcwd()
+    dir_save = 'test'
     os.chdir(dir_save)
     path_actual = 'D:\\WINDTOOKIT\\api\\met_data'
     path_frcst  = 'D:\\WINDTOOKIT\\api\\fcst_data'
@@ -146,16 +156,21 @@ def extract_texas2000():
     map_wind2site = df_wind_mapping['SITE_ID'].to_dict()
     map_site2dir  = df_wind_meta_file['full_timeseries_directory'].to_dict()
     wind_farms = set()
+    s_done = set()
     for w in map_wind2site:
         s = map_wind2site[w]
         d = map_site2dir[s]
         f_actual = os.path.sep.join( [path_actual, str(d), str(s)+'.nc'] )
         f_frcst  = os.path.sep.join( [path_frcst,  str(d), str(s)+'.nc'] )
-        write_csv_file(f_actual, f_frcst)
+        if s not in s_done:
+            write_csv_file(f_actual, f_frcst)
+        s_done.add(s)
+    os.chdir(dir_home)
 
 def extract_site_actual(s):
     # This is extracting one element by one element, the basic implementation,
     # we can improve its time consumption by block extraction.
+    dir_home = os.getcwd()
     dir_save = 'test'
     path_actual = 'D:\\WINDTOOKIT\\api\\met_data'
     path_frcst  = 'D:\\WINDTOOKIT\\api\\fcst_data'
@@ -186,7 +201,7 @@ def extract_site_actual(s):
             eom = mrange[1] # End of month
             for d in range(1, eom+1):
                 for h in range(0, 24): # Let's start from 0 o'clock
-                    for m5 in range(0, 6): # 1 hour has 12 5-min interval
+                    for m5 in range(0, 12): # 1 hour has 12 5-min interval
                         d0 = datetime.datetime(2007, 1, 1)
                         d_now = datetime.datetime(y, m, d)
                         i = ((d_now-d0).days*24 + h)*6 + m5
@@ -212,9 +227,11 @@ def extract_site_actual(s):
             # 'day-ahead',
         ],
     )
+    os.chdir(dir_home)
 
 
 if __name__ == "__main__":
-    # extract_texas2000()
-    extract_site_actual(820)
+    extract_texas2000()
+    # for s in [20481, 21055, 22235]:
+    #     extract_site_actual(s)
 
