@@ -99,7 +99,15 @@ def write_csv_file(fnc_actual, fnc_frcst, date_list=None):
     s_actual     = read_netcdf(fnc_actual)
     power_actual = offset_WIND_data(s_actual.power, -6, False) # Texas is in UTC -6
     s_frcst      = read_netcdf(fnc_frcst)
-    power_frcst  = offset_WIND_data(s_frcst.day_ahead_power, -6, True) # Texas is in UTC -6
+    power_frcst = dict()
+    item_forecasted = [
+        'day_ahead_power',
+        '4_hour_ahead_power',
+        '6_hour_ahead_power',
+        'hour_ahead_power',
+    ]
+    for i in item_forecasted:
+        power_frcst[i] = offset_WIND_data(getattr(s_frcst, i), -6, True) # Texas is in UTC -6
     output = {
         'year':        list(),
         'month':       list(),
@@ -107,25 +115,29 @@ def write_csv_file(fnc_actual, fnc_frcst, date_list=None):
         'hour':        list(),
         'minute':      list(),
         'actual':      np.array([]),
-        'day-ahead':   np.array([]),
     }
+    p2 = dict() # Forecasted
+    for i in item_forecasted:
+        output[i] = np.array([])
+        p2[i] = np.array([])
     p1 = np.array([]) # Actual
-    p2 = np.array([]) # Forecasted
 
     for d in date_list:
         p1_day = extract_day(power_actual, d.year, d.month, d.day)
         p1_day = np.reshape(p1_day, (12, 24), order='F')
         p1_day_hourly = np.mean(p1_day, axis=0) # Hourly average
-        p2_day_hourly = extract_day(power_frcst, d.year, d.month, d.day, True)
         p1 = np.append(p1, p1_day_hourly)
-        p2 = np.append(p2, p2_day_hourly)
+        for i in item_forecasted:
+            tmp = extract_day(power_frcst[i], d.year, d.month, d.day, True)
+            p2[i] = np.append(p2[i], tmp)
         output['year']   += [d.year]*24
         output['month']  += [d.month]*24
         output['day']    += [d.day]*24
         output['hour']   += range(0, 24)
         output['minute'] +=[0]*24
     output['actual']    = np.append(output['actual'], p1)
-    output['day-ahead'] = np.append(output['day-ahead'], p2)
+    for i in item_forecasted:
+        output[i] = np.append(output[i], p2[i])
     df_output = pd.DataFrame(output)
     df_output.to_csv(
         str_sid + '.csv',
@@ -137,8 +149,8 @@ def write_csv_file(fnc_actual, fnc_frcst, date_list=None):
             'hour',
             'minute',
             'actual',
-            'day-ahead',
-        ],
+            # 'day-ahead',
+        ] + item_forecasted,
     )
 
 def extract_texas2000():
