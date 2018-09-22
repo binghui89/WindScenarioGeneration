@@ -135,4 +135,5 @@ for i = 1: nI
     legend([h1, h2], 'Actual', 'DA forecast');
     xlabel('Time');
     ylabel('Power (p.u.)');
+    title(sid(i));
 end
