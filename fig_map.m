@@ -1,4 +1,4 @@
-function fig_map()
+function fig_map(indx_cluster)
 coor = [
     26.403873	-97.727356;
     26.494133	-97.630707;
@@ -97,9 +97,26 @@ figure
 usamap('Texas')
 alabamahi = shaperead('usastatehi', 'UseGeoCoords', true,...
             'Selector',{@(name) strcmpi(name,'Texas'), 'Name'});
-geoshow(alabamahi, 'FaceColor', [0.3 1.0, 0.675])
+geoshow(alabamahi, 'FaceColor', [1, 1, 1])
 % geoshow(alabamahi, refvec, 'DisplayType','texturemap')
-plotm(coor(:, 1), coor(:, 2), 'or', 'MarkerSize', 5, 'MarkerFaceColor', 'r');
+if nargin == 0
+    plotm(coor(:, 1), coor(:, 2), 'or', 'MarkerSize', 3, 'MarkerFaceColor', 'r');
+else
+    K = unique(indx_cluster);
+    listcolor = {'r','b','g','k','y',[.5 .6 .7],[.8 .2 .6]};
+    for k = 1: length(K)
+        if k<= 7
+            tmp_color = listcolor{k};
+        else
+            tmp_color = rand(1, 3);
+        end
+        plotm(...
+            coor(indx_cluster==K(k), 1), coor(indx_cluster==K(k), 2), 'o',...
+            'MarkerSize', 3,...
+            'MarkerFaceColor', tmp_color,...
+            'MarkerEdgeColor', tmp_color);
+    end
+end
 end
 
 function [fig] = old_GS_style()
