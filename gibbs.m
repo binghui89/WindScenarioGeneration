@@ -1,14 +1,93 @@
 %% Data preparation
-dirwork = 'test';
+dirwork = 'texas2000_wind_plus';
 dirhome = pwd;
 nbins = 50;
 
-sid = [20481, 21055, 22235];
-capacity = [16, 14, 16]; % Should write a function to read capacity based on site #
+% sid = [820, 900, 1249, 1342, 1575, 1622, 2061, 8979]; % This is the smaller cluster, 8 sites in total
+% capacity = [16, 16, 16, 16, 16, 16, 14, 16];
+sid = [
+    4816;
+    8289;
+    8476;
+    8705;
+    8845;
+    9047;
+    9411;
+    9572;
+    9641;
+    9773;
+    9842;
+    9937;
+   10069;
+   10148;
+   10191;
+   10334;
+   10365;
+   10480;
+   10494;
+   10526;
+   10527;
+   10986;
+   11008;
+   11038;
+   11462;
+   11614;
+   11726;
+   11873;
+   11913;
+   12236;
+   12445;
+   12708;
+   12851;
+   14342;
+   20481;
+   21055;
+   22235;
+    ];
+capacity = [
+    16;
+    16;
+    12;
+    14;
+    16;
+    16;
+    10;
+    16;
+    12;
+    12;
+    16;
+    16;
+    16;
+    16;
+     2;
+    16;
+    16;
+    16;
+    16;
+    16;
+     2;
+    16;
+    16;
+     6;
+    16;
+    16;
+    16;
+    16;
+    16;
+     6;
+    16;
+    14;
+    16;
+    16;
+    16;
+    14;
+    16;
+    ];
 nI = length(sid);
 nT1 = 46968 - 24; % Total number of hours for training
 nT2 = 24; % Total number of hours for forcasting
 nT = nT1 + nT2; % Total number of samples, total hours from 1/1/07 to 5/10/12
+nS = 3000; nS1 = 2900; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
 
 %% Read data
 xa_MW = nan(nT, nI); % Actual wind power in MW
@@ -19,12 +98,11 @@ xf    = nan(nT, nI); % Forecasted wind power in p.u.
 cd(dirwork);
 for i = 1: nI
     fname = strcat(int2str(sid(i)), '.csv');
-%     fname = strcat('Forecast_prob_', int2str(sid(i)), '.csv');
     M = csvread(fname, 1, 0);
-    xa_MW(:, i) = M(1:nT, 6);
-    xf_MW(:, i) = M(1:nT, 7);
-    xa(:, i)    = M(1:nT, 6)./capacity(i);
-    xf(:, i)    = M(1:nT, 7)./capacity(i);
+    xa_MW(:, i) = M(1:nT, 8); % Actual values
+    xf_MW(:, i) = M(1:nT, 11); % Forecasted values, coult be DA, HA
+    xa(:, i)    = M(1:nT, 8)./capacity(i);
+    xf(:, i)    = M(1:nT, 11)./capacity(i);
 end
 cd(dirhome);
 
@@ -63,7 +141,7 @@ hold off;
 
 %% Find copula
 I = 1: nI;
-for i = 1: nI
+parfor i = 1: nI
     % Note in the copula package, the conditioned variable is always the
     % last one
     % C(ufm1, ufm2, ..., ufmI, uam1, uam2, ... uam(i-1), uam(i+1), ...uamI, uami)
@@ -71,9 +149,9 @@ for i = 1: nI
     copula_model = func_choose_best_copula_model(u_copula_input);
     struct_a(i).copula = copula_model;
 end
+fprintf('Copula models done at: %s\n', datestr(now));
 
 %% Generate scenarios
-nS = 1000; nS1 = 900; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
 tmp = nan(nS, nT2, nI);
 for i = 1: nI
     tmp(:, :, i) = cdf_rand_correlated(nT2, ra(i), nS);
@@ -119,15 +197,19 @@ parfor t = 1: nT2
 end
 
 %% Make a graph
+x_new = nan(size(uam_new)); % The actual p.u. output of all scenarios
 x_ascend = (0:0.001:1)';
 for i = 1: nI
     figure();
     hold on;
-    for s = nS1+1: nS % The first nS1 scenarios are for burn-in process
+    for s = 1: nS % The first nS1 scenarios are for burn-in process
         u_tmp = uam_new(:, i, s);
         u_ascend = cdf(struct_a(i).Fm, x_ascend);
-        x = interp1(u_ascend, x_ascend, u_tmp, 'linear');
-        plot(1: length(x), x, 'Color', [102, 170, 215]./255);
+        interp1(u_ascend, x_ascend, rescale(uam_new(:, 8, 2), u_ascend(1), u_ascend(end)), 'linear')
+        x_new(:, i, s) = x_tmp;
+        if s > nS1 % The first nS1 scenarios are for burn-in process
+            plot(1: length(x_tmp), x_tmp, 'Color', [102, 170, 215]./255);
+        end
     end
     h1 = plot(1: nT2, xa(nT1+1: nT, i), 'LineWidth', 2, 'Color', 'r');
     h2 = plot(1: nT2, xf(nT1+1: nT, i), 'LineWidth', 2, 'Color', 'm');
