@@ -205,7 +205,7 @@ for i = 1: nI
     for s = 1: nS % The first nS1 scenarios are for burn-in process
         u_tmp = uam_new(:, i, s);
         u_ascend = cdf(struct_a(i).Fm, x_ascend);
-        interp1(u_ascend, x_ascend, rescale(uam_new(:, 8, 2), u_ascend(1), u_ascend(end)), 'linear')
+        x_tmp = interp1(u_ascend, x_ascend, rescale(uam_new(:, i, s), u_ascend(1), u_ascend(end)), 'linear');
         x_new(:, i, s) = x_tmp;
         if s > nS1 % The first nS1 scenarios are for burn-in process
             plot(1: length(x_tmp), x_tmp, 'Color', [102, 170, 215]./255);
