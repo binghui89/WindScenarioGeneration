@@ -67,9 +67,9 @@ for i = 1: nI
     fname = strcat(int2str(sid(i)), '.csv');
     M = csvread(fname, 1, 0);
     xa_MW(:, i) = M(1:nT, 8);
-    xf_MW(:, i) = M(1:nT, 11);
+    xf_MW(:, i) = M(1:nT, 11); % 11: DA, 14: HA
     xa(:, i)    = M(1:nT, 8)./cap(i);
-    xf(:, i)    = M(1:nT, 11)./cap(i);
+    xf(:, i)    = M(1:nT, 11)./cap(i); % 11: DA, 14: HA
     va(:, i)    = M(1:nT, 10);
 end
 cd(dirhome);
