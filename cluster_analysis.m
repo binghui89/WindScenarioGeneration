@@ -1,104 +1,95 @@
-function cluster_analysis()
-dirhome = pwd;
-dirwork = 'texas2000_wind_plus';
-%% Read metafile
-metafile = 'C:\Users\bxl180002\OneDrive\Tmp_RampWind\code_before_github\WIND\wtk_site_metadata.csv';
-fid = fopen(metafile);
-str_format = '%s %s %s %s %s %s %s %s %s %s %s %s';
-textscan(fid, str_format, 1, 'Delimiter', ',');
-str_format = '%d %f %f %s %s %f %s %f %f %f %f %s';
-C = textscan(fid, str_format, 'Delimiter', ',', 'EmptyValue',nan);
-fclose(fid);
-
-%% Read site ID and find out site capacity
-filenames = dir(dirwork);
-nI = 0;
-for i = 1: length(filenames)
-    if filenames(i).isdir
-        continue;
-    else
-        nI = nI + 1;
-    end
+function cluster_analysis(write_pdf)
+if nargin == 0
+    write_pdf = 0;
 end
-sid = nan(length(filenames), 1);
-for i = 1: length(filenames)
-    if filenames(i).isdir
-        sid(i) = nan;
-    else
-        [~, name, ~] = fileparts(filenames(i).name);
-        sid(i) = str2num(name);
-    end
-end
-sid(isnan(sid)) = [];
-sid = sort(sid); % sid in ascending order
-cap = nan(size(sid));
-for i = 1: length(sid)
-    cap(i) = C{8}(C{1}==sid(i));
-end
+data = read_all();
 
-%% Read wind power
-cd(dirwork);
-fname = strcat(int2str(sid(i)), '.csv');
-M = csvread(fname, 1, 0);
-yyyy = M(:, 1);
-mm   = M(:, 2);
-dd   = M(:, 3);
-hh   = M(:, 4);
-mi   = M(:, 5); 
-
-nT = size(M, 1);
-nI = length(sid);
-
-xa_MW = nan(nT, nI); % Actual wind power in MW
-xf_MW = nan(nT, nI); % Forecasted wind power in MW
-xa    = nan(nT, nI); % Actual wind power in p.u.
-xf    = nan(nT, nI); % Forecasted wind power in p.u.
-va    = nan(nT, nI); % Actual wind speed in m/s
-for i = 1: nI
-    fname = strcat(int2str(sid(i)), '.csv');
-    M = csvread(fname, 1, 0);
-    xa_MW(:, i) = M(1:nT, 8);
-    xf_MW(:, i) = M(1:nT, 11);
-    xa(:, i)    = M(1:nT, 8)./cap(i);
-    xf(:, i)    = M(1:nT, 11)./cap(i);
-    va(:, i)    = M(1:nT, 10);
-end
-cd(dirhome);
-
-%% Clustering analysis
-% Y = 2007: 2012;
-Y = 2007;
-K = 2: 2: 40; % # of clusters
+Y = 2007: 2012;
+K = 2: 2: 10; % # of clusters
 % f_cluster = 'kmedoids';
 f_cluster = 'kmeans';
 s_cluster   = nan(length(K), length(Y)); % Silhouette metric
 d_cluster   = nan(length(K), length(Y)); % Dunn metric
-i_selected = (yyyy==2012)&(mm==5);
+idxC = nan(data.nI, length(K), size(Y, 1));
 for j = 1: length(Y)
     y = Y(j);
-%     xa_t = xa(yyyy==y, :)';
-%     xa_t = va(yyyy==y, :)'; % Let's try wind speed
-    xa_t = va(:, :)';
-    idx_kmeans = nan(size(xa_t, 1), length(K));
+    xa_t = data.va(data.yyyy==y, :)'; % Let's try wind speed
     for i = 1: length(K)
         k = K(i);
-        [idx_kmeans(:, i), ~] = feval(...
+        [idxC(:, i, j), ~] = feval(...
             f_cluster, xa_t, k,...
             'Replicates',10,...
             'Distance', 'correlation');
-        [s, ~] = silhouette(xa_t, idx_kmeans(:, i), 'correlation');
+        [s, ~] = silhouette(xa_t, idxC(:, i, j), 'correlation');
         s_cluster(i, j) = mean(s);
         distM=squareform(pdist(xa_t));
-        d_cluster(i, j) = dunns(k, distM, idx_kmeans(:, i));
+        d_cluster(i, j) = dunns(k, distM, idxC(:, i, j));
     end
-    fig_map(idx_kmeans(:, K==2));
+    fig_map(idxC(:, K==2));
+    set(findall(gcf,'-property','FontSize'),'FontSize',14);
 end
+
 figure();
-plot(K, s_cluster, '-s');
-title('Silhouette');
+h = plot(K, s_cluster, '-s');
+set(h(1), 'LineStyle','-',  'LineWidth', 2, 'Color', 'k');
+set(h(2), 'LineStyle','--', 'LineWidth', 2, 'Color', 'k');
+set(h(3), 'LineStyle','-.', 'LineWidth', 2, 'Color', 'k');
+set(h(4), 'LineStyle','-',  'LineWidth', 2, 'Color', 'b');
+set(h(5), 'LineStyle','--', 'LineWidth', 2, 'Color', 'b');
+set(h(6), 'LineStyle','-.', 'LineWidth', 2, 'Color', 'b');
+Ystr{j} = int2str(y);
+for j = 1: length(Y)
+    y = Y(j);
+    Ystr{j} = int2str(y);
+end
+legend(h, Ystr);
 xlabel('# of clusters');
+set(findall(gcf,'-property','FontSize'),'FontSize',14);
+if write_pdf == 1
+    h = gcf();
+    set(h, 'Units', 'Inches');
+    pos = get(h,'Position');
+    set(h,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)])
+    print(h,'Silhouette','-dpdf','-r0');
+end
+title('Silhouette');
+
 figure();
 plot(K, d_cluster, '-s');
 xlabel('# of clusters');
 title('Dunn');
+
+figure();
+set(gcf, 'Position', [0, 0, 500, 600]);
+fig.PaperPositionMode = 'auto';
+for j = 1:length(Y)
+    y = Y(j);
+    r_va = corrcoef(data.va(data.yyyy==y, :));
+    ax = subplot(3, 2, j);
+    pos0 = ax.Position;
+    if mod(j, 2) == 0
+        ax.Position = [pos0(1)-0.05, pos0(2), pos0(3)*0.95, pos0(4)];
+    else
+        ax.Position = [pos0(1)-0.03, pos0(2), pos0(3)*0.95, pos0(4)];
+    end
+    imagesc(r_va);
+    colormap jet;
+    title(y);
+end
+pos0 = ax.Position;
+colorbar('Position', [pos0(1)+pos0(3)+0.05  pos0(2)  0.03  pos0(4)*3.8]);
+
+figure();
+r_va = corrcoef(data.va);
+imagesc(r_va);
+colormap jet;
+colorbar;
+set(findall(gcf,'-property','FontSize'),'FontSize',14);
+if write_pdf == 1
+    h = gcf();
+    set(h, 'Units', 'Inches');
+    pos = get(h,'Position');
+    set(h,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)])
+    print(h,'corr','-dpdf','-r0');
+end
 end
