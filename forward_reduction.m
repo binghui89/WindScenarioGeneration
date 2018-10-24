@@ -1,10 +1,11 @@
-function [x_reduced, q] = forward_reduction(x, p, k)
+function [x_reduced, q, b_selected] = forward_reduction(x, p, k)
 % Use method from Dupa?ová, Jitka, Nicole Gröwe-Kuska, and Werner Römisch. 
 % "Scenario reduction in stochastic programming." 
 % Mathematical programming 95.3 (2003): 493-511.
 % k is the number of scenarios that will be returned, i.e., we will reduce
 % to this number. p is the probability of the original scenario. x includes
 % the original scenario data.
+tic;
 [~, nS] = size(x);
 c = nan(nS);
 for i = 1: nS
@@ -38,4 +39,5 @@ for i = i_not_selected
 end
 q = p_tmp(b_selected);
 x_reduced = x(:, b_selected);
+toc;
 end
