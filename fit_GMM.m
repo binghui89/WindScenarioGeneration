@@ -9,9 +9,13 @@ f_GM_ref = transpose(counts/area);
 x_hist = bincenter';
 chi_GMM = nan(1, length(ncomp));
 for i = 1: ncomp
-    GMModel = fitgmdist(x, i);
-    f_GM = pdf(GMModel, x_hist);
-    chi_GMM(i) = sum((f_GM-f_GM_ref).^2./f_GM);
+    try
+        GMModel = fitgmdist(x, i);
+        f_GM = pdf(GMModel, x_hist);
+        chi_GMM(i) = sum((f_GM-f_GM_ref).^2./f_GM);
+    catch
+        chi_GMM(i) = inf;
+    end
 end
 
 [~, iopt] = min(chi_GMM);
