@@ -94,11 +94,17 @@ sid = [
     22235;
     ];
 figure
-usamap('Texas')
+axesm('mercator','Grid', 'on', 'MapLonLimit',[-107 -93], 'MapLatLimit',[25 37]);
 alabamahi = shaperead('usastatehi', 'UseGeoCoords', true,...
-            'Selector',{@(name) strcmpi(name,'Texas'), 'Name'});
-geoshow(alabamahi, 'FaceColor', [1, 1, 1])
-% geoshow(alabamahi, refvec, 'DisplayType','texturemap')
+    'Selector',{@(name) strcmpi(name,'Texas'), 'Name'});
+geoshow(alabamahi, 'FaceColor', [1, 1, 1]);
+tightmap;
+setm(gca,'mlinelocation',5);
+setm(gca,'plinelocation',5);
+plabel('PLabelLocation',5);
+mlabel('MLabelLocation',5);
+setm(gca, 'MlabelParallel', 'south');
+framem('FlineWidth',0.5,'FEdgeColor','k');
 if nargin == 0
     plotm(coor(:, 1), coor(:, 2), 'or', 'MarkerSize', 3, 'MarkerFaceColor', 'r');
 else
