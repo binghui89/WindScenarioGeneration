@@ -1,5 +1,5 @@
-function [x_reduced, q, b_selected] = backward_reduction(x, p, k)
-% Use method from Dupa?ová, Jitka, Nicole Gröwe-Kuska, and Werner Römisch. 
+function [x_reduced, q, b_selected] = reduction_forward(x, p, k)
+% Use method from Dupa?ovï¿½, Jitka, Nicole Grï¿½we-Kuska, and Werner Rï¿½misch. 
 % "Scenario reduction in stochastic programming." 
 % Mathematical programming 95.3 (2003): 493-511.
 % k is the number of scenarios that will be returned, i.e., we will reduce
@@ -14,31 +14,30 @@ for i = 1: nS
 end
 
 %% Start reduction
-b_not_selected = false(nS, 1); % Boolean variables
+b_selected = false(nS, 1); % Boolean variables
 iS = 1: nS; % Array of indices of all scenarios
-for ik = 1: nS - k
-    pc = inf.*ones(nS, 1); % Eqn. (16) from Dupa?ová et al.
-    i_selected = iS(~b_not_selected);
-    for i = i_selected
-        b_l = b_not_selected;
-        b_l(i) = true; % Temporarily add scenario i to set L
-        pc(i) = p(i)*min(c(~b_l, i));
+for ik = 1: k
+    sigma_pc = inf.*ones(nS, 1); % Eqn. (17) from Dupa?ovï¿½ et al.
+    i_not_selected = iS(~b_selected); % Array of indices of not selected scenarios
+    for i = i_not_selected
+        b_u = b_selected;
+        b_u(i) = true; % Temporarily add scenario i to set U
+        sigma_pc(i) = sum(min(c(b_u, ~b_u))*p(~b_u));
     end
-    [~, imin] = min(pc);
-    b_not_selected(imin) = true;
+    [~, imin] = min(sigma_pc);
+    b_selected(imin) = true; % Select scenario imin
 end
 
 %% Calculate probability
 p_tmp = p;
-i_not_selected = iS(b_not_selected); % Indices of abandoned ones
+i_not_selected = iS(~b_selected); % Indices of abandoned ones
 for i = i_not_selected
     c_tmp = c(:, i); % The distance of this abondoned one to all
-    c_tmp(b_not_selected) = inf; % The distance of the abondoned one to selected ones
+    c_tmp(~b_selected) = inf; % The distance of the abondoned one to selected ones
     [~, imin] = min(c_tmp); % Chose the selected one that is closest to the abondoned ones
     p_tmp(imin) = p_tmp(imin) + p(i); % Give the abondoned one's probability to the chosen selected one
 end
-q = p_tmp(~b_not_selected);
-x_reduced = x(:, ~b_not_selected);
-b_selected = ~b_not_selected;
+q = p_tmp(b_selected);
+x_reduced = x(:, b_selected);
 toc;
 end
