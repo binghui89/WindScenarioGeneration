@@ -29,5 +29,6 @@ for i = 1: nI
     dlmwrite(fname,yourdata,'-append');
 end
 cd(dirhome);
+fprintf('Scenario data written to .\\%s.\n', dirwork);
 
 end
