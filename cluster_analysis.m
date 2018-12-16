@@ -5,7 +5,7 @@ end
 data = read_all();
 
 Y = 2007: 2012;
-K = 2: 2: 10; % # of clusters
+K = 2: 1: 10; % # of clusters
 % f_cluster = 'kmedoids';
 f_cluster = 'kmeans';
 s_cluster   = nan(length(K), length(Y)); % Silhouette metric
@@ -44,7 +44,7 @@ for j = 1: length(Y)
 end
 legend(h, Ystr);
 xlabel('# of clusters');
-set(findall(gcf,'-property','FontSize'),'FontSize',14);
+set(findall(gcf,'-property','FontSize'),'FontSize',24);
 if write_pdf == 1
     h = gcf();
     set(h, 'Units', 'Inches');
@@ -84,12 +84,46 @@ r_va = corrcoef(data.va);
 imagesc(r_va);
 colormap jet;
 colorbar;
-set(findall(gcf,'-property','FontSize'),'FontSize',14);
+set(findall(gcf,'-property','FontSize'),'FontSize',24);
 if write_pdf == 1
     h = gcf();
     set(h, 'Units', 'Inches');
     pos = get(h,'Position');
     set(h,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)])
     print(h,'corr','-dpdf','-r0');
+end
+
+figure();
+idx2 = squeeze(idxC(:, 1, :));
+% idx2 = idx2 - 1;
+% idx2(:, 1) = -1.*(idx2(:, 1) - 1);
+% idx2(:, 5) = -1.*(idx2(:, 5) - 1);
+[r, c] = size(idx2');
+imagesc((1:c)+0.5, (1:r)+0.5, idx2');
+colormatrix = [255, 137, 137; 138, 199, 252]./255;
+colormap(colormatrix);
+ax = gca;
+set(ax, 'XTick', 1:(c+1), 'YTick', 1:(r+1),...
+    'XLim', [1 c+1], 'YLim', [1 r+1],...
+    'GridLineStyle', '-', 'XGrid', 'on', 'YGrid', 'on');
+set(ax, 'YDir', 'normal');
+set(findall(gcf,'-property','FontSize'),'FontSize',14);
+for i = 1: length(ax.XTickLabel)
+    if mod(i, 5) == 0
+        ax.XTickLabel{i} = int2str(i);
+    else
+        ax.XTickLabel{i} = '';
+    end
+end
+for i = 1: length(Y)
+    ax.YTickLabel{i} = int2str(Y(i));
+end
+ax.YTickLabel{end} = '';
+if write_pdf == 1
+    h = gcf();
+    set(h, 'Units', 'Inches');
+    pos = get(h,'Position');
+    set(h,'PaperPositionMode','Auto','PaperUnits','Inches','PaperSize',[pos(3), pos(4)])
+    print(h,'2cluster','-dpdf','-r0');
 end
 end
