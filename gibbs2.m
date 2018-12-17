@@ -1,5 +1,5 @@
 function gibbs2(data, selected_id)
-% Note whichid should be a column vector of logical variables having the
+% Note selected_id should be a column vector of logical variables having the
 % same length as data.sid
 
 % Data preparation
@@ -9,7 +9,7 @@ nbins = 50;
 nT1 = 46968 - 24; % Total number of hours for training
 nT2 = 24; % Total number of hours for forcasting
 nT = nT1 + nT2; % Total number of samples, total hours from 1/1/07 to 5/10/12
-nS = 1000; nS1 = 900; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
+nS = 3000; nS1 = 2900; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
 
 xa = data.xa(:, selected_id);
 xf = data.xf(:, selected_id);
@@ -84,6 +84,19 @@ for i = 1: nI
     xlabel('Time');
     ylabel('Power (p.u.)');
     title(sid(i));
+end
+
+% Total production
+x_new_MW = nan(size(x_new));
+for i = 1: nI
+    x_new_MW(:, i, :) = capacity(i).*x_new(:, i, :);
+end
+figure();
+hold on;
+plot(1: nT2, sum(data.xa_MW(nT1+1: nT, selected_id), 2), 'LineWidth', 2, 'Color', 'r');
+plot(1: nT2, sum(data.xf_MW(nT1+1: nT, selected_id), 2), 'LineWidth', 2, 'Color', 'm');
+for s = nS1+1: nS
+    plot(1: size(x_new_MW, 1), squeeze(sum(x_new_MW(:, :, nS1+1: nS), 2)), 'Color', [102, 170, 215]./255);
 end
 
 end
