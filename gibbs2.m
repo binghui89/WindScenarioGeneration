@@ -1,4 +1,4 @@
-function gibbs2(data, selected_id)
+function x_new = gibbs2(data, nT1, nT2, nS1, nS2, selected_id)
 % Note selected_id should be a column vector of logical variables having the
 % same length as data.sid
 
@@ -6,10 +6,11 @@ function gibbs2(data, selected_id)
 fprintf('Gibbs sampling starts at: %s\n', datestr(now));
 % data = read_all();
 nbins = 50;
-nT1 = 46968 - 24; % Total number of hours for training
-nT2 = 24; % Total number of hours for forcasting
+% nT1 = 46968 - 24; % Total number of hours for training
+% nT2 = 24; % Total number of hours for forcasting
 nT = nT1 + nT2; % Total number of samples, total hours from 1/1/07 to 5/10/12
-nS = 3000; nS1 = 2900; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
+% nS = 3000; nS1 = 2900; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
+nS = nS1 + nS2;
 
 xa = data.xa(:, selected_id);
 xf = data.xf(:, selected_id);
