@@ -1,5 +1,5 @@
 function cluster_scenario_reduction_main(write_flag)
-
+% This script is for the 2-cluster case of the complete 45-site run.
 if nargin == 0
     write_flag = 0;
 end
@@ -218,12 +218,21 @@ for c = 1:nC
 %     x_reduced_MW = nan(size(x_reduced{c}));
     xa_MW = nan(size(data{c}.xa));
     xf_MW = nan(size(data{c}.xf));
+    
+    % To map the wind site to wind farms in the TX2kB system, we use
+    % capacity multiplier here
+    TXdata;
+    sid_multiplier = nan(nI(c), 1);
+    for i = 1: nI(c)
+        iselected = (SITE_ID==data{c}.sid(i));
+        sid_multiplier(i) = sum(PMAX(iselected)./SITE_CAP(iselected));
+    end
 
     for i = 1: nI(c)
-%         x_reduced_MW(:, i, :) = capacity(i).*x_reduced{c}(:, i, :);
-        x_new_MW(:, i, :) = capacity(i).*x_new(:, i, :);
-        xa_MW(:, i) = data{c}.xa(:, i).*capacity(i);
-        xf_MW(:, i) = data{c}.xf(:, i).*capacity(i);
+        x_reduced_MW{c}(:, i, :) = x_reduced_MW{c}(:, i, :).*sid_multiplier(i);
+        x_new_MW(:, i, :) = x_new(:, i, :).*capacity(i).*sid_multiplier(i);
+        xa_MW(:, i) = data{c}.xa(:, i).*capacity(i).*sid_multiplier(i);
+        xf_MW(:, i) = data{c}.xf(:, i).*capacity(i).*sid_multiplier(i);
     end
     x_new_MWsum = squeeze(sum(x_new_MW(:, :, nS1+1: nS1+nS2), 2));
     x_reduced_MWsum = squeeze(sum(x_reduced_MW{c}, 2));
