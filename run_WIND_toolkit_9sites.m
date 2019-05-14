@@ -7,7 +7,7 @@ data = read_all();
 % selected_sites = [1342,2061,4816,8979,9572,10069,10526,10527,11038];
 
 % This is randomly selected 20 sites
-selected_sites = randsample(data.sid, 9);
+selected_sites = randsample(data.sid, 20);
 
 I_selected = zeros(data.nI, 1);
 for i = 1: length(selected_sites)
@@ -29,7 +29,7 @@ data_s.sid = data.sid(I_selected);
 
 %% First, let's do cluster analysis
 Y = 2007: 2012;
-Karray = 2: 1: sum(I_selected); % # of clusters
+Karray = 2: 1: 20; % # of clusters
 f_cluster = 'kmeans';
 s_cluster   = nan(length(Karray), length(Y)); % Silhouette metric
 d_cluster   = nan(length(Karray), length(Y)); % Dunn metric
@@ -45,15 +45,18 @@ for j = 1: length(Y)
     end
 end
 
-% plot(Karray, s_cluster);
-
+% Add K = 1
+Karray = [1 Karray];
+idxC = cat(2, true(data_s.nI, 1, length(Y)), idxC);
 
 %% Start generating scenarios
 xnew_all = cell(length(Karray), 1);
+time_taken = nan(length(Karray), 1);
 
 mse_allK = cell(length(Karray), 1);
 mae_allK = cell(length(Karray), 1);
 for nK = Karray
+    tic;
     idx = idxC(:, Karray==nK, 1); % Just use cluster results from the first year
     mse = nan(nK, 1);
     mae = nan(nK, 1);
@@ -64,7 +67,7 @@ for nK = Karray
     %     xf = data_s.xf(:, i_cluster);
     %     sid = data_s.sid(i_cluster);
         nT1 = 46968 - 24; nT2 = 24;
-        nS1 = 2900; nS2 = 100;
+        nS1 = 8000; nS2 = 1000;
         xnew = gibbs2(data_s, nT1, nT2, nS1, nS2, i_cluster);
         xnewK{k} = xnew;
         abserr = abs(repmat(data_s.xa(nT1+1:nT1+nT2, i_cluster), 1, 1, nS2) - xnew(:, :, nS1+1: nS1+nS2));
@@ -76,6 +79,7 @@ for nK = Karray
     xnew_all{Karray==nK} = xnewK;
     mae_allK{Karray==nK} = mae;
     mse_allK{Karray==nK} = mse;
+    time_taken(Karray==nK) = toc;
 end
 
 mse_mean = nan(length(Karray), 1);
@@ -84,17 +88,6 @@ for i = 1: length(Karray)
     mse_mean(i) = mean(mse_allK{i});
     mae_mean(i) = mean(mae_allK{i});
 end
-
-%% And, don't forget when K = 1
-i_cluster = true(data_s.nI, 1);
-xnew = gibbs2(data_s, nT1, nT2, nS1, nS2, i_cluster);
-xnew_all = [{xnew};xnew_all];
-abserr = abs(repmat(data_s.xa(nT1+1:nT1+nT2, i_cluster), 1, 1, nS2) - xnew(:, :, nS1+1: nS1+nS2));
-% abserr = abs(data_s.xa(nT1+1:nT1+nT2, i_cluster) - xnew);
-sqrerr = abserr.^2;
-
-mse_mean = [sqrt(mean(sqrerr(:))); mse_mean];
-mae_mean = [mean(abserr(:)); mae_mean];
 
 %% Plot results, all years of cluster results
 % figure();
@@ -112,25 +105,20 @@ mae_mean = [mean(abserr(:)); mae_mean];
 
 %% Plot results, only the first year cluster results
 fig = figure('Position', [100 100 560 420*0.8]);
-ax = subplot(1, 1, 1);
 % if length(mse_mean) == length(Karray)
 %     plotyy(Karray, s_cluster(:, 1), Karray, mse_mean);
 % elseif length(mse_mean) == length(Karray) + 1
 %     plotyy(Karray, s_cluster(:, 1), [1 Karray], mse_mean);
 % end
 % figure();
-if length(mse_mean) == length(Karray)
-    [AX,H1,H2] = plotyy(Karray, s_cluster(:, 1), Karray, mse_mean);
-elseif length(mse_mean) == length(Karray) + 1
-%     [AX,H1,H2] = plotyy(Karray, s_cluster(:, 1), [1 Karray], mse_mean);
-    ax = subplot(1, 1, 1);
-    yyaxis(ax, 'left'); 
-    plot(Karray, s_cluster(:, 1), 'Marker', 's', 'LineWidth', 2, 'Color', 'k');
-    ylabel('Silhouette coefficient') % left y-axis
-    yyaxis(ax, 'right');
-    plot([1 Karray], mse_mean, 'LineStyle', '--', 'Marker', 's', 'LineWidth', 2,'Color', 'k');
-    ylabel('RMSE');
-end
+% [AX,H1,H2] = plotyy(Karray, s_cluster(:, 1), [1 Karray], mse_mean);
+ax = subplot(1, 1, 1);
+yyaxis(ax, 'left'); 
+plot(Karray(2:end), s_cluster(:, 1), 'Marker', 's', 'LineWidth', 2, 'Color', 'k');
+ylabel('Silhouette coefficient') % left y-axis
+yyaxis(ax, 'right');
+plot(Karray, mse_mean, 'LineStyle', '--', 'Marker', 's', 'LineWidth', 2,'Color', 'k');
+ylabel('RMSE');
 xlabel('Number of clusters (K)');
 set(findall(gcf,'-property','FontSize'),'FontSize',18);
 legend('Silhouette', 'RMSE'); legend('boxoff');
@@ -183,6 +171,69 @@ ax.YAxis(2).Color = 'k';
 %     mse_max(nK) = max(mse);
 %     mse_min(nK) = min(mae);
 % end
+
+%% PICP analysis
+% xnew_all{1} = {xnew_all{1}}; % Otherwise xnew_all{nK}{K} later will raise an error
+p_norminal = 10:10:90;
+
+Kmax = max(Karray);
+
+array_average_p_actual = nan(Kmax, 9);
+
+for nK = 1:Kmax
+    idx = idxC(:, Karray==nK, 1);
+    array_p_actual = nan(nK, 9);
+    array_nsite = nan(1, nK);
+%     figure;
+%     plot(0:10:100, 0:10:100, 'r');
+%     hold on;
+    for K = 1: nK
+        i_cluster = (idx==K);
+        xnew = xnew_all{nK}{K}; 
+        p_actual = picp(xnew(:, :, nS1+1: nS1+nS2) , data_s.xa(nT1+1:nT1+nT2, i_cluster), p_norminal);
+%         plot([0 all_p_norminal 100], [0 all_p_actual 100], 'k');
+        
+        array_p_actual(K, :) = p_actual;
+        array_nsite(K) = sum(i_cluster);
+        average_p_actual = (array_nsite./sum(array_nsite))*array_p_actual;
+        array_average_p_actual(nK, :) = average_p_actual;
+    end
+end
+
+cell_legends = cell(Kmax, 1);
+for i = 1: Kmax
+    cell_legends{i} = int2str(i);
+end
+
+% PICP figure 1, all PICP curves
+figure();
+plot([0 p_norminal 100]', [zeros(Kmax, 1) array_average_p_actual 100.*ones(Kmax, 1)]');
+xlabel('Nominal coverage rate');
+ylabel('Actual coverage rate');
+legend(cell_legends);
+
+% PICP figure 2, average delta PICP vs. nK
+figure()
+delta_actual_nominal = abs(...
+    array_average_p_actual - repmat(10:10:90, size(array_average_p_actual, 1), 1)...
+    );
+plot(Karray, mean(delta_actual_nominal, 2));
+xlabel('Number of clusters (K)');
+ylabel('Average delta PICP');
+
+% PICP figure 3, average delta PICP vs. nK
+[~, rowmax] = max(mean(delta_actual_nominal, 2));
+[~, rowmin] = min(mean(delta_actual_nominal, 2));
+figure();
+plot([0 p_norminal 100], [0 array_average_p_actual(rowmin, :) 100], 'r');
+hold on;
+plot([0 p_norminal 100], [0 array_average_p_actual(rowmax, :) 100], 'b');
+plot(0:10:100, 0:10:100, 'k');
+xlabel('Nominal coverage rate');
+ylabel('Actual coverage rate');
+cell_legend = {strcat('K=', int2str(Karray(rowmin))), strcat('K=', int2str(Karray(rowmax)))};
+legend(cell_legend);
+% end
 end
 
 function idxC = cluster_analysis_tmp(x,f_cluster,K)
@@ -200,6 +251,24 @@ for i = 1: length(K)
         f_cluster, x_t, k,...
         'Replicates',10,...
         'Distance', 'correlation');
+end
+
+end
+
+function all_p_actual = picp(samples, actual, all_p_norminals)
+% samples should be a nsamples x nsite x nscenarios
+% actual should be nsamples x nsite
+% p_norminal is the nominal coverage rate, e.g., [10, 20, ..., 90]
+% should return actual coverage rate, the same length as all_p_norminals
+
+all_p_actual = nan(size(all_p_norminals));
+for i = 1: length(all_p_norminals)
+    p_norminal = all_p_norminals(i);
+    p_upper = 100 - (100-p_norminal)/2;
+    p_lower = (100-p_norminal)/2;
+    bounds = prctile(samples, [p_lower p_upper], 3);
+    hitted = (actual<=bounds(:, :, 2)) & (actual>=bounds(:, :, 1));
+    all_p_actual(i) = sum(hitted(:))/numel(actual)*100;
 end
 
 end
