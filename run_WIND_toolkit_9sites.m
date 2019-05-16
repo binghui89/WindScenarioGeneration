@@ -89,6 +89,62 @@ for i = 1: length(Karray)
     mae_mean(i) = mean(mae_allK{i});
 end
 
+% Calculate MW
+xnewMW_all = cell(size(xnew_all));
+for nK = Karray
+    idx = idxC(:, Karray==nK, 1); % Just use cluster results from the first year
+    xnewMWK = cell(nK, 1);
+    for k = 1:nK
+        sid_cluster = data_s.sid((idx==k));
+        xnew = xnew_all{nK}{k};
+        xnewMW = nan(nT2, length(sid_cluster), nS2);
+        for i = 1: length(sid_cluster)
+            s = sid_cluster(i);
+            xnewMW(:, i, :) = xnew(:, i, nS1+1: nS1+nS2).*data_s.cap(data_s.sid==s);
+        end
+        xnewMWK{k} = xnewMW;
+    end
+    xnewMW_all{nK} = xnewMWK;
+end
+
+%% Reduce scenarios
+nS_target = 10;
+xnewMWred_all = cell(size(xnew_all));
+time_taken_red = nan(length(Karray), 1);
+for nK = Karray
+    tic;
+    xnewMWK = xnewMW_all{nK};
+    xnewMWredK = cell(size(xnewMWK));
+%     idx = idxC(:, Karray==nK, 1);
+    for k = 1: nK
+        xnewMW = xnewMWK{k};
+        if k == 1
+            sumnewMW = squeeze(sum(xnewMW, 2));
+            scenario_index = 1:nS2;
+            p = 1/nS2*ones(nS2, 1);
+            [sumnewMW_red, p_red, b_selected] = reduction_forward(sumnewMW, p(:), nS_target);
+            scenario_index_red = scenario_index(b_selected);
+
+        else
+            sumnewMW_dn = squeeze(sum(xnewMW, 2));
+            scenario_index_dn = 1:nS2;
+            scenario_index = combvec(scenario_index_red, scenario_index_dn);
+            p_dn = 1/nS2*ones(nS2, 1);
+            
+            sumnewMW = combvec(sumnewMW_red, sumnewMW_dn);
+            p = prod(combvec(p_red(:)', p_dn(:)'), 1);
+            [sumnewMW_red, p_red, b_selected] = reduction_forward(sumnewMW, p(:), nS_target);
+            scenario_index_red = scenario_index(:, b_selected);
+        end
+    end
+    for k = 1: nK
+        xnewMW = xnewMWK{k};
+        xnewMWredK{k} = xnewMW(:, :, scenario_index_red(k, :));
+    end
+    xnewMWred_all{nK} = xnewMWredK;
+    time_taken_red(Karray==nK) = toc;
+end
+
 %% Plot results, all years of cluster results
 % figure();
 % if length(mse_mean) == length(Karray)
