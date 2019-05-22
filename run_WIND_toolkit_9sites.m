@@ -290,6 +290,12 @@ ylabel('Actual coverage rate');
 cell_legend = {strcat('K=', int2str(Karray(rowmin))), strcat('K=', int2str(Karray(rowmax)))};
 legend(cell_legend);
 % end
+
+%% Time analysis
+bar([time_taken time_taken_red;], 'stacked')
+legend('Scenario generation' ,'Scenario reduction')
+xlabel('Number of clusters (K)')
+ylabel('Time (s)')
 end
 
 function idxC = cluster_analysis_tmp(x,f_cluster,K)
