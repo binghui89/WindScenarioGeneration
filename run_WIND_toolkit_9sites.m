@@ -1,5 +1,9 @@
-function run_WIND_toolkit_9sites()
+function run_WIND_toolkit_9sites(red_flag)
 addpath('./packages/copula-matlab');
+
+if nargin==0
+    red_flag = true; % Default to the reduced case.
+end
 
 data = read_all();
 
@@ -7,7 +11,11 @@ data = read_all();
 % selected_sites = [1342,2061,4816,8979,9572,10069,10526,10527,11038];
 
 % This is randomly selected 20 sites
-selected_sites = randsample(data.sid, 20);
+if red_flag
+    selected_sites = randsample(data.sid, 20);
+else
+    selected_sites = data.sid;
+end
 
 I_selected = zeros(data.nI, 1);
 for i = 1: length(selected_sites)
@@ -29,8 +37,8 @@ data_s.sid = data.sid(I_selected);
 
 %% First, let's do cluster analysis
 Y = 2007: 2012;
-Karray = 2: 1: 20; % # of clusters
-f_cluster = 'kmeans';
+Karray = 11: 1: 20; % # of clusters
+f_cluster = 'kmeans'; % We can also test kmedoids
 s_cluster   = nan(length(Karray), length(Y)); % Silhouette metric
 d_cluster   = nan(length(Karray), length(Y)); % Dunn metric
 idxC = nan(data_s.nI, length(Karray), size(Y, 1));
@@ -46,12 +54,14 @@ for j = 1: length(Y)
 end
 
 % Add K = 1
-Karray = [1 Karray];
-idxC = cat(2, true(data_s.nI, 1, length(Y)), idxC);
+if red_flag
+    Karray = [1 Karray];
+    idxC = cat(2, true(data_s.nI, 1, length(Y)), idxC);
+end
 
 %% Start generating scenarios
 xnew_all = cell(length(Karray), 1);
-time_taken = nan(length(Karray), 1);
+time_taken_sc = nan(length(Karray), 1); % Scenario generation time
 
 mse_allK = cell(length(Karray), 1);
 mae_allK = cell(length(Karray), 1);
@@ -79,7 +89,7 @@ for nK = Karray
     xnew_all{Karray==nK} = xnewK;
     mae_allK{Karray==nK} = mae;
     mse_allK{Karray==nK} = mse;
-    time_taken(Karray==nK) = toc;
+    time_taken_sc(Karray==nK) = toc;
 end
 
 mse_mean = nan(length(Karray), 1);
@@ -96,7 +106,7 @@ for nK = Karray
     xnewMWK = cell(nK, 1);
     for k = 1:nK
         sid_cluster = data_s.sid((idx==k));
-        xnew = xnew_all{nK}{k};
+        xnew = xnew_all{Karray==nK}{k};
         xnewMW = nan(nT2, length(sid_cluster), nS2);
         for i = 1: length(sid_cluster)
             s = sid_cluster(i);
@@ -104,7 +114,7 @@ for nK = Karray
         end
         xnewMWK{k} = xnewMW;
     end
-    xnewMW_all{nK} = xnewMWK;
+    xnewMW_all{Karray==nK} = xnewMWK;
 end
 
 %% Reduce scenarios
@@ -113,7 +123,7 @@ xnewMWred_all = cell(size(xnew_all));
 time_taken_red = nan(length(Karray), 1);
 for nK = Karray
     tic;
-    xnewMWK = xnewMW_all{nK};
+    xnewMWK = xnewMW_all{Karray==nK};
     xnewMWredK = cell(size(xnewMWK));
 %     idx = idxC(:, Karray==nK, 1);
     for k = 1: nK
@@ -141,7 +151,7 @@ for nK = Karray
         xnewMW = xnewMWK{k};
         xnewMWredK{k} = xnewMW(:, :, scenario_index_red(k, :));
     end
-    xnewMWred_all{nK} = xnewMWredK;
+    xnewMWred_all{Karray==nK} = xnewMWredK;
     time_taken_red(Karray==nK) = toc;
 end
 
@@ -170,7 +180,11 @@ fig = figure('Position', [100 100 560 420*0.8]);
 % [AX,H1,H2] = plotyy(Karray, s_cluster(:, 1), [1 Karray], mse_mean);
 ax = subplot(1, 1, 1);
 yyaxis(ax, 'left'); 
-plot(Karray(2:end), s_cluster(:, 1), 'Marker', 's', 'LineWidth', 2, 'Color', 'k');
+if Karray(1) == 1 
+    plot(Karray(2:end), s_cluster(:, 1), 'Marker', 's', 'LineWidth', 2, 'Color', 'k');
+else
+    plot(Karray(1:end), s_cluster(:, 1), 'Marker', 's', 'LineWidth', 2, 'Color', 'k');
+end
 ylabel('Silhouette coefficient') % left y-axis
 yyaxis(ax, 'right');
 plot(Karray, mse_mean, 'LineStyle', '--', 'Marker', 's', 'LineWidth', 2,'Color', 'k');
@@ -234,9 +248,9 @@ p_norminal = 10:10:90;
 
 Kmax = max(Karray);
 
-array_average_p_actual = nan(Kmax, 9);
+array_average_p_actual = nan(length(Karray), 9);
 
-for nK = 1:Kmax
+for nK = Karray
     idx = idxC(:, Karray==nK, 1);
     array_p_actual = nan(nK, 9);
     array_nsite = nan(1, nK);
@@ -245,25 +259,25 @@ for nK = 1:Kmax
 %     hold on;
     for K = 1: nK
         i_cluster = (idx==K);
-        xnew = xnew_all{nK}{K}; 
+        xnew = xnew_all{Karray==nK}{K}; 
         p_actual = picp(xnew(:, :, nS1+1: nS1+nS2) , data_s.xa(nT1+1:nT1+nT2, i_cluster), p_norminal);
 %         plot([0 all_p_norminal 100], [0 all_p_actual 100], 'k');
         
         array_p_actual(K, :) = p_actual;
         array_nsite(K) = sum(i_cluster);
         average_p_actual = (array_nsite./sum(array_nsite))*array_p_actual;
-        array_average_p_actual(nK, :) = average_p_actual;
+        array_average_p_actual(Karray==nK, :) = average_p_actual;
     end
 end
 
-cell_legends = cell(Kmax, 1);
-for i = 1: Kmax
-    cell_legends{i} = int2str(i);
+cell_legends = cell(length(Karray), 1);
+for nK = Karray
+    cell_legends{Karray==nK} = int2str(nK);
 end
 
 % PICP figure 1, all PICP curves
 figure();
-plot([0 p_norminal 100]', [zeros(Kmax, 1) array_average_p_actual 100.*ones(Kmax, 1)]');
+plot([0 p_norminal 100]', [zeros(length(Karray), 1) array_average_p_actual 100.*ones(length(Karray), 1)]');
 xlabel('Nominal coverage rate');
 ylabel('Actual coverage rate');
 legend(cell_legends);
@@ -292,7 +306,8 @@ legend(cell_legend);
 % end
 
 %% Time analysis
-bar([time_taken time_taken_red;], 'stacked')
+figure();
+bar(Karray, [time_taken_sc time_taken_red;], 'stacked')
 legend('Scenario generation' ,'Scenario reduction')
 xlabel('Number of clusters (K)')
 ylabel('Time (s)')
