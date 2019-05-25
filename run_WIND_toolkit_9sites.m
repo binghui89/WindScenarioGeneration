@@ -1,12 +1,43 @@
-function run_WIND_toolkit_9sites(red_flag)
+function run_WIND_toolkit_9sites(red_flag, season, method_sr)
+% red_flag: true or false, true is the full case (45 sites), 
+% false is the reduced case (20 sites). Defaults to true.
+% season indicates the target date for scenario generation
+% 1: Feb. 20, 2012, 2: May 10, 2012, 3: Aug. 10, 2012, 4: Nov. 10, 2012
+% Defaults to 2.
+% method_sr switch between the sum-based reduction (1) and site-based
+% reduction (2). Defauts to 2.
 addpath('./packages/copula-matlab');
 
 if nargin==0
-    red_flag = true; % Default to the reduced case.
+    method_sr = 2;  % 1: sum-based reduction; 2: site-based reduction
+    season = 2;
+    red_flag = true; 
+elseif nargin==1
+    season = 2;
+    method_sr = 2;  % 1: sum-based reduction; 2: site-based reduction
+elseif nargin==2
+    method_sr = 2;  % 1: sum-based reduction; 2: site-based reduction
 end
 
-method_sr = 2;  % 1: sum-based reduction; 2: site-based reduction
+
 nS_target = 10; % Number of scenarios we'd like to reduce to.
+% nT1: % Number of hours of the training dataset
+% nT2: % Number of hours of the probabilistic forecast
+if season == 1
+    nT1 = 44808 - 24; % Feb. 20, 2012
+    nT2 = 24;
+elseif season == 2
+    nT1 = 46968 - 24; % May 10, 2012
+    nT2 = 24;
+elseif season == 3
+    nT1 = 49176 - 24; % Aug. 10, 2012
+    nT2 = 24;
+elseif season == 4
+    nT1 = 51384-24; % Nov. 10, 2012
+    nT2 = 24;
+end
+nS1 = 8000; % Number of burn-in scenarios
+nS2 = 1000; % Number of generated scenarios
 
 data = read_all();
 
@@ -76,8 +107,6 @@ for nK = Karray
     %     xa = data_s.xa(:, i_cluster);
     %     xf = data_s.xf(:, i_cluster);
     %     sid = data_s.sid(i_cluster);
-        nT1 = 46968 - 24; nT2 = 24;
-        nS1 = 8000; nS2 = 1000;
         xnew = gibbs2(data_s, nT1, nT2, nS1, nS2, i_cluster);
         xnewK{k} = xnew;
         abserr = abs(repmat(data_s.xa(nT1+1:nT1+nT2, i_cluster), 1, 1, nS2) - xnew(:, :, nS1+1: nS1+nS2));
@@ -122,13 +151,13 @@ xnewMWred_all = cell(size(xnew_all));
 time_taken_red = zeros(max(Karray), length(Karray));
 array_prob_red = nan(nS_target, length(Karray)); % Probabilities
 for nK = Karray
-    t_start = tic;
     % This is a cell of arrays, each array represents scenarios from a 
     % cluster. This cell includes nK clusters.
     xnewMWK = xnewMW_all{Karray==nK};
 
     xnewMWredK = cell(size(xnewMWK)); % This cell contains all reduced scenarios.
     for k = 1: nK
+        t_start = tic;
         xnewMW = xnewMWK{k};
         if k == 1
             scenario_index = 1:nS2;
