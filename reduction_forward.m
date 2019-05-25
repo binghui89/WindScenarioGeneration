@@ -5,7 +5,7 @@ function [x_reduced, q, b_selected] = reduction_forward(x, p, k)
 % k is the number of scenarios that will be returned, i.e., we will reduce
 % to this number. p is the probability of the original scenario. x includes
 % the original scenario data.
-tic;
+% tic;
 [~, nS] = size(x);
 c = nan(nS);
 for i = 1: nS
@@ -39,5 +39,5 @@ for i = i_not_selected
 end
 q = p_tmp(b_selected);
 x_reduced = x(:, b_selected);
-toc;
+% toc;
 end
