@@ -5,10 +5,10 @@ if nargin==0
     red_flag = true; % Default to the reduced case.
 end
 
-data = read_all();
+method_sr = 2;  % 1: sum-based reduction; 2: site-based reduction
+nS_target = 10; % Number of scenarios we'd like to reduce to.
 
-% This is Mucun's 9 sites
-% selected_sites = [1342,2061,4816,8979,9572,10069,10526,10527,11038];
+data = read_all();
 
 % This is randomly selected 20 sites
 if red_flag
@@ -37,7 +37,7 @@ data_s.sid = data.sid(I_selected);
 
 %% First, let's do cluster analysis
 Y = 2007: 2012;
-Karray = 11: 1: 20; % # of clusters
+Karray = 2: 1: 20; % # of clusters
 f_cluster = 'kmeans'; % We can also test kmedoids
 s_cluster   = nan(length(Karray), length(Y)); % Silhouette metric
 d_cluster   = nan(length(Karray), length(Y)); % Dunn metric
@@ -118,41 +118,60 @@ for nK = Karray
 end
 
 %% Reduce scenarios
-nS_target = 10;
 xnewMWred_all = cell(size(xnew_all));
-time_taken_red = nan(length(Karray), 1);
+time_taken_red = zeros(max(Karray), length(Karray));
+array_prob_red = nan(nS_target, length(Karray)); % Probabilities
 for nK = Karray
-    tic;
+    t_start = tic;
+    % This is a cell of arrays, each array represents scenarios from a 
+    % cluster. This cell includes nK clusters.
     xnewMWK = xnewMW_all{Karray==nK};
-    xnewMWredK = cell(size(xnewMWK));
-%     idx = idxC(:, Karray==nK, 1);
+
+    xnewMWredK = cell(size(xnewMWK)); % This cell contains all reduced scenarios.
     for k = 1: nK
         xnewMW = xnewMWK{k};
         if k == 1
-            sumnewMW = squeeze(sum(xnewMW, 2));
             scenario_index = 1:nS2;
             p = 1/nS2*ones(nS2, 1);
-            [sumnewMW_red, p_red, b_selected] = reduction_forward(sumnewMW, p(:), nS_target);
+            switch method_sr
+                case 1 % Sum-based reduction
+                    x_in = squeeze(sum(xnewMW, 2));
+                case 2 % Site-based reduction
+                    tmp_size = size(xnewMW);
+                    x_in = reshape(xnewMW, tmp_size(1)*tmp_size(2), tmp_size(3));
+                otherwise
+                    warning('Unexpected method index.');
+            end
+            [x_out, p_red, b_selected] = reduction_forward(x_in, p(:), nS_target);
             scenario_index_red = scenario_index(b_selected);
 
         else
-            sumnewMW_dn = squeeze(sum(xnewMW, 2));
             scenario_index_dn = 1:nS2;
             scenario_index = combvec(scenario_index_red, scenario_index_dn);
             p_dn = 1/nS2*ones(nS2, 1);
-            
-            sumnewMW = combvec(sumnewMW_red, sumnewMW_dn);
             p = prod(combvec(p_red(:)', p_dn(:)'), 1);
-            [sumnewMW_red, p_red, b_selected] = reduction_forward(sumnewMW, p(:), nS_target);
+            
+            switch method_sr
+                case 1
+                    x_in_dn = squeeze(sum(xnewMW, 2));
+                case 2
+                    tmp_size = size(xnewMW);
+                    x_in_dn = reshape(xnewMW, tmp_size(1)*tmp_size(2), tmp_size(3));
+                otherwise
+                    warning('Unexpected method index.');
+            end
+            x_in = combvec(x_out, x_in_dn);
+            [x_out, p_red, b_selected] = reduction_forward(x_in, p(:), nS_target);
             scenario_index_red = scenario_index(:, b_selected);
         end
+        time_taken_red(k, Karray==nK) = toc(t_start); % Record time for each cluster
     end
     for k = 1: nK
         xnewMW = xnewMWK{k};
         xnewMWredK{k} = xnewMW(:, :, scenario_index_red(k, :));
     end
     xnewMWred_all{Karray==nK} = xnewMWredK;
-    time_taken_red(Karray==nK) = toc;
+    array_prob_red(:, Karray==nK) = p_red(:);
 end
 
 %% Plot results, all years of cluster results
@@ -307,7 +326,7 @@ legend(cell_legend);
 
 %% Time analysis
 figure();
-bar(Karray, [time_taken_sc time_taken_red;], 'stacked')
+bar(Karray, [time_taken_sc sum(time_taken_red, 1)';], 'stacked');
 legend('Scenario generation' ,'Scenario reduction')
 xlabel('Number of clusters (K)')
 ylabel('Time (s)')
