@@ -359,6 +359,44 @@ bar(Karray, [time_taken_sc sum(time_taken_red, 1)';], 'stacked');
 legend('Scenario generation' ,'Scenario reduction')
 xlabel('Number of clusters (K)')
 ylabel('Time (s)')
+
+%% Write data to file
+csv_sid = [];
+csv_xa_MW = [];
+csv_xf_MW = [];
+csv_xs_MW = [];
+
+k_optim = 10; % The optimal number of clusters, based on visual inspection of PICP
+xnewMWredK = xnewMWred_all{Karray==k_optim};
+idx = idxC(:, Karray==k_optim, 1); % Just use cluster results from the first year
+
+for k = 1: k_optim
+    i_cluster = (idx==k);
+    csv_xa_MW = cat(2, csv_xa_MW, data_s.xa_MW(nT1+1:nT1+nT2, i_cluster));
+    csv_xf_MW = cat(2, csv_xf_MW, data_s.xf_MW(nT1+1:nT1+nT2, i_cluster));
+    csv_xs_MW = cat(2, csv_xs_MW, xnewMWredK{k});
+    sid = data_s.sid(i_cluster);
+    csv_sid = cat(1, csv_sid, sid(:));
+end
+
+header = {...
+    'xa', 'xf', ...
+    'N1', 'N2', 'N3', 'N4', 'N5', ...
+    'N6', 'N7', 'N8', 'N9', 'N10' ...
+    };
+% dirname = 'season2';
+
+if exist(dirname, 'var')
+    write_scenario(...
+        csv_sid, ...
+        csv_xa_MW, ...
+        csv_xf_MW, ...
+        csv_xs_MW, ...
+        header, ...
+        dirname ...
+        );
+end
+
 end
 
 function idxC = cluster_analysis_tmp(x,f_cluster,K)

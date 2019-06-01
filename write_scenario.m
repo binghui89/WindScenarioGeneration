@@ -1,8 +1,12 @@
-function write_scenario(sid, xa, xf, xs, header)
+function write_scenario(sid, xa, xf, xs, header, dir)
 % Write scenario data to csv file with given headers
 % sid: nI by 1, xa and xf dim: nT by nI, xs dim: nT by nI by nS
 % header: cell vector of (nS + 2) by 1, including xa and xf
-dirwork = 'scenario_data';
+if nargin == 5 % For compatibility with old code.
+    dirwork = 'scenario_data';
+else
+    dirwork = dir;
+end
 dirhome = pwd;
 commaHeader = [header;repmat({','},1,numel(header))]; %insert commaas
 commaHeader = commaHeader(:)';
