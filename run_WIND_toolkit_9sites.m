@@ -339,7 +339,7 @@ plot(Karray, mean(delta_actual_nominal, 2));
 xlabel('Number of clusters (K)');
 ylabel('Average delta PICP');
 
-% PICP figure 3, average delta PICP vs. nK
+% PICP figure 3, max and min average delta PICP vs. nK
 [~, rowmax] = max(mean(delta_actual_nominal, 2));
 [~, rowmin] = min(mean(delta_actual_nominal, 2));
 figure();
@@ -352,6 +352,110 @@ ylabel('Actual coverage rate');
 cell_legend = {strcat('K=', int2str(Karray(rowmin))), strcat('K=', int2str(Karray(rowmax)))};
 legend(cell_legend);
 % end
+
+%% Sharpness, based on the Wan paper
+p_norminal = 10:10:90;
+
+array_average_interval_scores = nan(length(Karray), 9);
+
+for nK = Karray
+    idx = idxC(:, Karray==nK, 1);
+    array_interval_scores = nan(nK, 9);
+    array_nsite = nan(1, nK);
+    for K = 1: nK
+        i_cluster = (idx==K);
+        xnew = xnew_all{Karray==nK}{K}; 
+        interval_scores = interval_score(xnew(:, :, nS1+1: nS1+nS2) , data_s.xa(nT1+1:nT1+nT2, i_cluster), p_norminal);
+%         plot([0 all_p_norminal 100], [0 all_p_actual 100], 'k');
+        
+        array_interval_scores(K, :) = interval_scores;
+        array_nsite(K) = sum(i_cluster);
+        average_p_actual = (array_nsite./sum(array_nsite))*array_interval_scores;
+        array_average_interval_scores(Karray==nK, :) = average_p_actual;
+    end
+end
+
+cell_legends = cell(length(Karray), 1);
+for nK = Karray
+    cell_legends{Karray==nK} = int2str(nK);
+end
+
+% Sharpness figure 1, all Sharpness curves
+figure();
+plot(p_norminal', -array_average_interval_scores');
+xlabel('Nominal coverage rate');
+ylabel('Interval scores');
+legend(cell_legends);
+
+% Sharpness figure 2, average sharpness vs. nK
+figure()
+plot(Karray(:), mean(-array_average_interval_scores, 2));
+xlabel('Number of clusters (K)');
+ylabel('Average interval scores');
+
+% Sharpness figure 3, highest and lowest sharpness curves vs. nK
+[~, rowmax] = max(mean(-array_average_interval_scores, 2));
+[~, rowmin] = min(mean(-array_average_interval_scores, 2));
+figure();
+plot(p_norminal, -array_average_interval_scores(rowmin, :), 'r');
+hold on;
+plot(p_norminal, -array_average_interval_scores(rowmax, :), 'b');
+xlabel('Nominal coverage rate');
+ylabel('Interval scores');
+cell_legend = {strcat('K=', int2str(Karray(rowmin))), strcat('K=', int2str(Karray(rowmax)))};
+legend(cell_legend);
+
+%% Interval sizes
+p_norminal = 10:10:90;
+
+array_average_interval_sizes = nan(length(Karray), 9);
+
+for nK = Karray
+    idx = idxC(:, Karray==nK, 1);
+    array_interval_size = nan(nK, 9);
+    array_nsite = nan(1, nK);
+    for K = 1: nK
+        i_cluster = (idx==K);
+        xnew = xnew_all{Karray==nK}{K}; 
+        itvl_size = interval_size(xnew(:, :, nS1+1: nS1+nS2) , data_s.xa(nT1+1:nT1+nT2, i_cluster), p_norminal);
+%         plot([0 all_p_norminal 100], [0 all_p_actual 100], 'k');
+        
+        array_interval_size(K, :) = itvl_size;
+        array_nsite(K) = sum(i_cluster);
+        average_p_actual = (array_nsite./sum(array_nsite))*array_interval_size;
+        array_average_interval_sizes(Karray==nK, :) = average_p_actual;
+    end
+end
+
+cell_legends = cell(length(Karray), 1);
+for nK = Karray
+    cell_legends{Karray==nK} = int2str(nK);
+end
+
+% Interval size figure 1, all Sharpness curves
+figure();
+plot(p_norminal', array_average_interval_sizes');
+xlabel('Nominal coverage rate');
+ylabel('Interval size');
+legend(cell_legends);
+
+% Interval size figure 2, average sharpness vs. nK
+figure()
+plot(Karray(:), mean(array_average_interval_sizes, 2));
+xlabel('Number of clusters (K)');
+ylabel('Average interval size');
+
+% Interval size figure 3, highest and lowest sharpness curves vs. nK
+[~, rowmax] = max(mean(array_average_interval_sizes, 2));
+[~, rowmin] = min(mean(array_average_interval_sizes, 2));
+figure();
+plot(p_norminal, array_average_interval_sizes(rowmin, :), 'r');
+hold on;
+plot(p_norminal, array_average_interval_sizes(rowmax, :), 'b');
+xlabel('Nominal coverage rate');
+ylabel('Interval size');
+cell_legend = {strcat('K=', int2str(Karray(rowmin))), strcat('K=', int2str(Karray(rowmax)))};
+legend(cell_legend);
 
 %% Time analysis
 figure();
@@ -432,6 +536,69 @@ for i = 1: length(all_p_norminals)
     bounds = prctile(samples, [p_lower p_upper], 3);
     hitted = (actual<=bounds(:, :, 2)) & (actual>=bounds(:, :, 1));
     all_p_actual(i) = sum(hitted(:))/numel(actual)*100;
+end
+
+end
+
+function scores = interval_score(samples, actual, all_p_norminals)
+% Follow equation (32) in Wan, Can, et al. "Probabilistic forecasting of 
+% wind power generation using extreme learning machine." IEEE Transactions 
+% on Power Systems 29.3 (2013): 1033-1044.
+% samples should be a nsamples x nsite x nscenarios
+% actual should be nsamples x nsite
+% p_norminal is the nominal coverage rate, e.g., [10, 20, ..., 90]
+% should return actual coverage rate, the same length as all_p_norminals
+% Note: nominal covergage rate is prediction interval
+
+[nT, nI, nS] = size(samples);
+sample_reshape = reshape(samples, nT*nI, nS);
+actual_reshape = reshape(actual, nT*nI, 1);
+
+scores = nan(size(all_p_norminals));
+for i = 1: length(all_p_norminals)
+    p_norminal = all_p_norminals(i);
+    p_upper = 100 - (100-p_norminal)/2;
+    p_lower = (100-p_norminal)/2;
+    bounds = prctile(sample_reshape, [p_lower p_upper], 2);
+    lb = bounds(:, 1);
+    ub = bounds(:, 2);
+    i_lower  = find(actual_reshape < lb);
+    i_higher = find(actual_reshape > ub);
+    i_hitted = find((actual_reshape > lb) & (actual_reshape < ub));
+    
+    alpha = 100 - p_norminal;
+    s_lower  = -2*alpha.*(ub(i_lower) - lb(i_lower)) - 4.*(lb(i_lower) - actual_reshape(i_lower));
+    s_higher = -2*alpha.*(ub(i_higher) - lb(i_higher)) - 4.*(actual_reshape(i_higher) - ub(i_higher));
+    s_hitted = -2*alpha.*(ub(i_hitted) - lb(i_hitted));
+    s = mean([s_lower; s_higher; s_hitted]);
+    scores(i) = s;
+end
+
+end
+
+function sizes = interval_size(samples, actual, all_p_norminals)
+% Follow equation (32) in Wan, Can, et al. "Probabilistic forecasting of 
+% wind power generation using extreme learning machine." IEEE Transactions 
+% on Power Systems 29.3 (2013): 1033-1044.
+% samples should be a nsamples x nsite x nscenarios
+% actual should be nsamples x nsite
+% p_norminal is the nominal coverage rate, e.g., [10, 20, ..., 90]
+% should return actual coverage rate, the same length as all_p_norminals
+% Note: nominal covergage rate is prediction interval
+
+[nT, nI, nS] = size(samples);
+sample_reshape = reshape(samples, nT*nI, nS);
+actual_reshape = reshape(actual, nT*nI, 1);
+
+sizes = nan(size(all_p_norminals));
+for i = 1: length(all_p_norminals)
+    p_norminal = all_p_norminals(i);
+    p_upper = 100 - (100-p_norminal)/2;
+    p_lower = (100-p_norminal)/2;
+    bounds = prctile(sample_reshape, [p_lower p_upper], 2);
+    lb = bounds(:, 1);
+    ub = bounds(:, 2);
+    sizes(i) = mean(ub-lb);
 end
 
 end
