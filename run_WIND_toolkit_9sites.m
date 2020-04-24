@@ -68,7 +68,7 @@ data_s.sid = data.sid(I_selected);
 
 %% First, let's do cluster analysis
 Y = 2007: 2012;
-Karray = 2: 1: 20; % # of clusters
+Karray = 1: 1: 20; % # of clusters
 f_cluster = 'kmeans'; % We can also test kmedoids
 s_cluster   = nan(length(Karray), length(Y)); % Silhouette metric
 d_cluster   = nan(length(Karray), length(Y)); % Dunn metric
