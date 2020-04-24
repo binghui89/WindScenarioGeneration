@@ -1,7 +1,134 @@
 function scenario_generation_figure(season)
 % The figures in the journal paper
 figure_per_season(season);
+ex_post(season);
 % sem_multiple_figures()
+end
+
+function ex_post(season)
+switch season
+    case 1
+        s_a = load('full_case.S9000_da_45sites_logitn.s1.mat'); % K = 2 to 20
+        s_b = load('season1_20191031.mat'); % K = 1
+    case 2
+        s_a = load('full_case.S9000_da_45sites_logitn.s2.mat');
+        s_b = load('season2_20191031.mat');
+    case 3
+        s_a = load('full_case.S9000_da_45sites_logitn.s3.mat');
+        s_b = load('season3_20191031.mat');
+    case 4
+        s_a = load('full_case.S9000_da_45sites_logitn.s4.mat');
+        s_b = load('season4_20191031.mat');
+end
+Karray = [s_b.Karray(1) s_a.Karray];
+idxC = cat(2, s_b.idxC(:, 1, :), s_a.idxC);
+xnew_all = cat(1, {s_b.xnew_all{1}}, s_a.xnew_all);
+data_s = s_b.data_s;
+nS1 = s_b.nS1;
+nS2 = s_b.nS2;
+nT1 = s_b.nT1;
+nT2 = s_b.nT2;
+time_taken_sc = cat(1, s_b.time_taken_sc(1), s_a.time_taken_sc);
+time_taken_red = cat(2, [s_b.time_taken_red(1, 1); zeros(19, 1)], s_a.time_taken_red);
+clear s_a s_b;
+
+selected_id = true(data_s.nI, 1);
+
+nT = nT1 + nT2; % Total number of samples, total hours from 1/1/07 to 5/10/12
+% nS = 3000; nS1 = 2900; nS2 = nS - nS1; % nS1 is # of burn-in scenarios
+nS = nS1 + nS2;
+xa = data_s.xa(:, selected_id);
+xf = data_s.xf(:, selected_id);
+sid = data_s.sid(selected_id);
+capacity = data_s.cap(selected_id);
+nI = length(sid);
+xnew = xnew_all{1}{1};
+
+% Logit transformation
+ya = log( xa(1: nT, :)./(1 - xa(1: nT, :)) );
+yf = log( xf(1: nT, :)./(1 - xf(1: nT, :)) );
+ynew = log( xnew./(1 - xnew) );
+uam = nan(nT, nI); % Marginal CDF of actual wind power
+ufm = nan(nT, nI); % Marginal CDF of forecasted wind power
+um_new = nan(size(ynew));
+for i = 1: nI
+    gm_a = fitdist(ya(~isinf(ya(1: nT1, i)), i),'Normal'); % Only use time 1 to nT1 for training
+    gm_f = fitdist(yf(~isinf(yf(1: nT1, i)), i),'Normal');
+    tmp = reshape(ynew(:, i, :), nT2*nS, 1);
+    gm_new = fitdist(tmp(~isinf(tmp)), 'Normal');
+    struct_a(i).Fm = gm_a; % Fm is fitted marginal distribution function
+    struct_f(i).Fm = gm_f;
+    struct_new(i).Fm = gm_new;
+    uam(:, i) = cdf(gm_a, ya(:, i));
+    ufm(:, i) = cdf(gm_f, yf(:, i));
+    um_new(:, i, :) = cdf(gm_new, ynew(:, i, :));
+end
+uam(uam==1) = 1-eps;
+uam(uam==0) = eps;
+ufm(ufm==1) = 1-eps;
+ufm(ufm==0) = eps;
+
+% Find parameter r for the covariance matrix
+ra = nan(nI, 1);
+ra_new = nan(nI, 1);
+
+selfcorr_a = zeros(nT2-1, nI);
+selfcorr_new = zeros(nT2-1, nI);
+
+for i = 1: nI
+    u = uam(:, i);
+    z = norminv(u);
+    len_u = size(u, 1); % Length of training data
+    dim_z = 24; % Suppose forecast length is 24 data points, so dim(z) = 24
+    z_repeated = nan(len_u-dim_z+1, dim_z); 
+    for j = 1: dim_z
+        z_repeated(:, j)= z(j: len_u-dim_z+j);
+    end
+    z_repeated = z_repeated(~any(isinf(z_repeated), 2), :);
+    corrmax_a = corrcoef(z_repeated);
+
+    % r for the new data, for validation
+    u = squeeze(um_new(:, i, :))';
+    z = norminv(u);
+    z_repeated = z;
+    corrmax_new = corrcoef(z_repeated);
+    
+    for r = 1: nT2
+        for c = 1:nT2
+            lag = abs(r-c);
+            if lag==0
+                continue;
+            end
+            selfcorr_a(lag, i) = selfcorr_a(lag, i) + corrmax_a(r, c);
+            selfcorr_new(lag, i) = selfcorr_new(lag, i) + corrmax_new(r, c);
+        end
+    end
+end
+
+for lag = 1:nT2-1
+    selfcorr_a(lag, :) = selfcorr_a(lag, :)/2/(nT2-1);
+    selfcorr_new(lag, :) = selfcorr_new(lag, :)/2/(nT2-1);
+end
+
+figure();
+plot(1:23, selfcorr_a, 'k'); hold on;
+plot(1:23, selfcorr_new, 'b');
+xlabel('Time lag (h)');
+ylabel('Autocorrelation');
+set(findall(gcf,'-property','FontSize'),'FontSize',22);
+
+corrcoef_a = corrcoef(uam);
+for i = 1:24
+    corrcoef_new(:, :, i) = corrcoef(squeeze(um_new(i, :, 8001:9000))');
+end
+for i = 1:24
+    delta_corr = abs(corrcoef_new(:, :, i) - corrcoef_a)./corrcoef_a;
+    figure();
+    imagesc(delta_corr);
+    colormap jet;
+    colorbar;
+    set(findall(gcf,'-property','FontSize'),'FontSize',22);
+end
 end
 
 function figure_per_season(season)
@@ -220,14 +347,47 @@ ylabel('Interval size');
 cell_legend = {strcat('K=', int2str(Karray(rowmin))), strcat('K=', int2str(Karray(rowmax)))};
 legend(cell_legend);
 
-%% Comprehensive, including reliability and interval size
+%% CRPS
+array_crps = nan(numel(Karray), 1);
+for nK = Karray
+    idx = idxC(:, Karray==nK, 1);
+    xnew_k = nan(nT2, data_s.nI, nS2);
+    for K = 1: nK
+        i_cluster = (idx==K);
+        xnew = xnew_all{Karray==nK}{K};
+        xnew_k(:, i_cluster, :) = xnew(:, :, nS1+1: nS1+nS2); 
+    end
+    
+    crps_k = nan(nT2, data_s.nI);
+    edges = 0:0.01:1;
+    for i = 1:nT2
+        for j = 1: data_s.nI
+            counts = histcounts(squeeze(xnew_k(i, j, :)), edges);
+            bincenter = (edges(1:end-1) + edges(2:end))/2;
+            bincdf = cumsum(counts)./sum(counts);
+            crps_k(i, j) = crps(bincenter, bincdf, data_s.xa(1, 1), 0.01);
+        end
+    end
+    array_crps(nK) = mean(crps_k(:));
+end
+figure();
+plot(Karray, array_crps, 'LineWidth', 2, 'Marker', 's', 'Color', 'k');
+xlabel('Number of clusters (K)');
+ylabel('CRPS');
+set(findall(gcf,'-property','FontSize'),'FontSize',22);
+
+%% Comprehensive, including reliability and interval size, as well as CRPS
 figure();
 % average_coverage_and_size = (delta_interval_size + delta_picp_pinc)./2;
 plot(Karray, 0.5.*mean(delta_picp_pinc, 2) - 0.5.*mean(array_average_interval_scores.*100, 2), 'LineWidth', 2, 'Marker', 's', 'Color', 'k');
 xlabel('Number of clusters (K)');
 ylabel('SEM (%)');
+yyaxis right;
+plot(Karray, array_crps, 'LineWidth', 2, 'Marker', 's', 'Color', 'k', 'LineStyle', '--');
+ylabel('CRPS');
 set(findall(gcf,'-property','FontSize'),'FontSize',22);
-
+legend('SEM', 'CRPS');
+legend boxoff;
 
 %% Time analysis
 figure();
@@ -239,7 +399,6 @@ legend boxoff;
 xlabel('Number of clusters (K)')
 ylabel('Time (minutes)')
 set(findall(gcf,'-property','FontSize'),'FontSize',22);
-
 end
 
 function sem_multiple_figures()
